@@ -5,8 +5,6 @@ shopt -s inherit_errexit
 set -x
 
 main() {
-  # MAMBA_INC=$CONDA_/Library/Developer/CommandLineTools/include
-
   pushd OCP
 
   mkdir -p include
