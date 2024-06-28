@@ -1,0 +1,20 @@
+name: CI # Continuous Integration
+
+on:
+  push:
+    branches: master
+  pull_request:
+
+jobs:
+  nix:
+    name: build with nix
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: DeterminateSystems/nix-installer-action@v12
+      - name: build
+        run: nix build
+      - name: lint
+        run: |
+          nix run nixpkgs#deadnix -- --fail
+          nix run nixpkgs#statix -- check
