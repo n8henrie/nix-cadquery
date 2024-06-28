@@ -1,170 +1,97 @@
 {
-  description = "WIP: Flake to built and run CadQuery in JupyterLab on M1 Mac";
-
-  # inputs.nixpkgs.url = "github:nixos/nixpkgs/release-22.11";
-  # Required for apple_sdk 12.0
-  # inputs.nixpkgs.url = "github:nixos/nixpkgs/master";
   inputs.nixpkgs.url = "github:nixos/nixpkgs";
+  outputs =
+    { self, nixpkgs }:
 
-  outputs = {
-    self,
-    nixpkgs,
-  }: let
-    system = "aarch64-darwin";
-  in {
-    packages.${system} = let
-      pkgs = import nixpkgs {inherit system;};
-      stdenv = pkgs.darwin.apple_sdk.clang14Stdenv;
-      inherit (pkgs) lib;
-    in {
-      default = self.outputs.packages.${system}.ocp;
+    let
+      system = "aarch64-darwin";
+    in
+    {
+      packages.${system}.default =
+        let
+          pkgs = nixpkgs.legacyPackages.${system};
+        in
+        pkgs.python311.withPackages (
+          ps: with ps; [
+            jupyterlab
+            numpy
+            pip
+            (ps.buildPythonPackage rec {
+              version = "2.4.0";
+              pname = "cadquery";
+              format = "wheel";
+              src = pkgs.fetchPypi rec {
+                inherit pname version format;
+                python = "py3";
+                dist = python;
+                hash = "sha256-ZshlseXbIFuBpd3IUz1HQVdykSks8tyAsQSunjCFsZU=";
+              };
+              propagatedBuildInputs = with ps; [
+                ezdxf
+                multimethod
+                nptyping
+                numpy
+                pyparsing
+                typing-extensions
+                typish
 
-      clang-python = with pkgs.python3Packages;
-        buildPythonPackage rec {
-          inherit stdenv;
-          inherit (stdenv.cc.cc) version;
-          pname = "clang";
+                (toPythonModule (
+                  pkgs.nlopt.overrideAttrs (prev: {
+                    configureFlags = builtins.filter (each: each != "--without-python") prev.configureFlags or [ ];
+                    buildInputs = prev.buildInputs or [ ] ++ [ pkgs.swig ];
+                    propagatedBuildInputs = prev.propagatedBuildInputs or [ ] ++ [ numpy ];
+                    nativeCheckInputs = prev.nativeCheckInputs or [ ] ++ [
+                      (ps.python.withPackages (ps: [ ps.numpy ]))
+                      ps.pythonImportsCheckHook
+                    ];
+                    doCheck = true;
+                    pythonImportsCheck = [ "nlopt" ];
+                  })
+                ))
 
-          src = "${stdenv.cc.cc.src}/clang/bindings/python";
-          propagatedBuildInputs = [setuptools];
-          # CLANG_LIBRARY_PATH = lib.makeLibraryPath [libclang.lib];
-          format = "pyproject";
-          postUnpack = let
-            pyproject_toml = pkgs.writeText "pyproject.toml" ''
-              [build-system]
-              requires = [ "setuptools>=42", "wheel" ]
-              build-backend = "setuptools.build_meta"
+                (toPythonModule (
+                  stdenv.mkDerivation {
+                    version = "3.6.4";
+                    name = "casadi";
+                    buildInputs = [
+                      python
+                      pkgs.swig4
+                    ];
+                    nativeBuildInputs = [ pkgs.cmake ];
+                    nativeCheckImports = [ pythonImportsCheckHook ];
+                    propagatedBuildInputs = [ numpy ];
+                    cmakeFlags = [
+                      "-DWITH_PYTHON=ON"
+                      "-DWITH_PYTHON3=ON"
+                      "-DPYTHON_PREFIX=${placeholder "out"}/${ps.python.sitePackages}"
+                      # Fails with:
+                      # Broken paths found in a .pc file! /nix/path/to/lib/pkgconfig/tinyxml2.pc
+                      "-DWITH_TINYXML=OFF"
+                    ];
+                    src = pkgs.fetchFromGitHub {
+                      "owner" = "casadi";
+                      "repo" = "casadi";
+                      rev = "3.6.4";
+                      hash = "sha256-BfUpSXbllQUNn5BsBQ+ZmQ15OLOp/QegT8igOxSgukE=";
+                    };
+                    pythonImportsCheck = [ "casadi-fake" ];
+                  }
+                ))
 
-              [project]
-              name = "clang"
-              version = "${version}"
-            '';
-          in ''
-            cp '${pyproject_toml}' $sourceRoot/pyproject.toml
-          '';
-          # unpackPhase = let
-          #   pyproject_toml = pkgs.writeText "pyproject.toml" ''
-          #     [build-system]
-          #     requires = [ "setuptools>=42", "wheel" ]
-          #     build-backend = "setuptools.build_meta"
-
-          #     [project]
-          #     name = "clang"
-          #     version = "${version}"
-          #   '';
-          # in ''
-          #   export sourceRoot=$PWD/source
-          #   mkdir $sourceRoot
-          #   tar xf ${stdenv.cc.cc.src}
-          #   cp -rv --no-preserve=mode clang-${stdenv.cc.version}.src/bindings/python/* $sourceRoot/
-          #   cp '${pyproject_toml}' $sourceRoot/pyproject.toml
-          # '';
-        };
-
-      pywrap = with pkgs.python3Packages;
-        buildPythonPackage {
-          inherit stdenv;
-          pname = "pywrap";
-          version = "07f85fc";
-
-          src = pkgs.fetchFromGitHub {
-            owner = "CadQuery";
-            repo = "pywrap";
-            rev = "07f85fc";
-            sha256 = "ktyIDnmF+gGLtBquGJ4wgxU2bjPe85Yv6na99ZIUC7k=";
-          };
-
-          propagatedBuildInputs = [
-            click
-            jinja2
-            joblib
-            logzero
-            pandas
-            path
-            pybind11
-            pyparsing
-            schema
-            toml
-            toposort
-            tqdm
-
-            self.packages.${system}.clang-python
-          ];
-
-          meta = {
-            homepage = "https://github.com/CadQuery/pywrap";
-            description = "PyWrap is a C++ binding generator using pybind11, libclang and jinja.";
-            license = lib.licenses.asl20;
-            maintainers = with maintainers; [];
-          };
-        };
-
-      ocp = let
-        pythonWithPywrap = pkgs.python3.withPackages (ps:
-          with ps; [
-            joblib
-            setuptools
-            pybind11
-            self.packages.${system}.pywrap
-          ]);
-      in
-        stdenv.mkDerivation {
-          pname = "OCP";
-          version = "7.5.3.0";
-
-          src = pkgs.fetchFromGitHub {
-            owner = "CadQuery";
-            repo = "OCP";
-            rev = "7.5.3.0";
-            sha256 = "jaZVsbMWSuLNnLlRzDp4ZEKqZLXC8OAp+i8/jKbMRJg=";
-          };
-
-          buildInputs = with pkgs; [
-            llvmPackages_14.libclang
-            llvmPackages_14.libcxxClang
-            # boost
-            cmake
-            darwin.apple_sdk.frameworks.OpenGL
-            opencascade-occt
-            # (opencascade-occt.override {vtk = vtk_9;})
-            pythonWithPywrap
-            pkg-config
-            rapidjson
-            vtk_9
-          ];
-
-          # type_traits: -i "$(nix path-info github:nixos/nixpkgs#llvmPackages_14.libcxx.dev)/include/c++/v1" \
-          # -l "$(nix path-info github:nixos/nixpkgs#llvmPackages_14.libcxxStdenv.cc.cc.lib)/lib/libclang.dylib" \
-          configurePhase = ''
-            pywrap \
-            -i "$(nix path-info github:nixos/nixpkgs#llvmPackages_14.libcxx.dev)/include/c++/v1" \
-            -l "$(nix path-info github:nixos/nixpkgs#llvmPackages_14.libcxxStdenv.cc.cc.lib)/lib/libclang.dylib" \
-              all ocp.toml
-          '';
-
-          buildPhase = ''
-            cmake -S OCP -B build
-            cmake --build build
-          '';
-
-          # BINDGEN_EXTRA_CLANG_ARGS = "-isystem ${llvmPackages.libclang.lib}/lib/clang/${lib.getVersion clang}/include";
-
-          # cmakeFlags = [
-          #   "-DPYTHON_EXECUTABLE=${python}/bin/python"
-          # ];
-          #   "-DOCE_INSTALL_PREFIX=${placeholder "out"}"
-          #   "-DOCE_WITH_FREEIMAGE=ON"
-          #   "-DOCE_WITH_VTK=ON"
-          #   "-DOCE_WITH_GL2PS=ON"
-          #   "-DOCE_MULTITHREAD_LIBRARY=TBB"
-          # ];
-          meta = {
-            homepage = "https://github.com/CadQuery/OCP";
-            description = "Python wrapper for OCCT generated using pywrap.";
-            license = lib.licenses.asl20;
-            maintainers = with pkgs.maintainers; [];
-          };
-        };
+                (buildPythonPackage rec {
+                  version = "7.7.2.0";
+                  pname = "cadquery-ocp";
+                  format = "wheel";
+                  src = pkgs.fetchurl {
+                    url = "https://github.com/CadQuery/ocp-build-system/releases/download/${version}/cadquery_ocp-7.7.2-cp311-cp311-macosx_11_0_arm64.whl";
+                    hash = "sha256-ak0r11nMKACskWZDV+VauoicmWx0kr1ZXtY7DFF4adM=";
+                  };
+                  pythonImportsCheck = [ "OCP" ];
+                })
+              ];
+              pythonImportsCheck = [ "cadquery" ];
+            })
+          ]
+        );
     };
-  };
 }
