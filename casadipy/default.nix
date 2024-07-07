@@ -14,7 +14,7 @@
   mumps,
   # scotch, # not packaged for macos
   swig4,
-  runPytestTests ? false,
+  buildIpopt ? false,
 }:
 let
   inherit (python3Packages) python toPythonModule pythonImportsCheckHook;
@@ -32,7 +32,7 @@ toPythonModule (
         ipopt
         swig4
       ]
-      ++ (lib.optionals runPytestTests [
+      ++ (lib.optionals buildIpopt [
         blas
         lapack
         metis
@@ -69,7 +69,7 @@ toPythonModule (
         # Broken paths found in a .pc file! /nix/path/to/lib/pkgconfig/tinyxml2.pc
         "-DWITH_TINYXML=OFF"
       ]
-      ++ lib.optionals runPytestTests [
+      ++ lib.optionals buildIpopt [
         "-DWITH_IPOPT=ON"
         "-DWITH_MUMPS=ON"
         "-DMUMPS_LIBRARIES=${mumps}/lib"
@@ -83,5 +83,5 @@ toPythonModule (
     doCheck = true;
     pythonImportsCheck = [ "casadi" ];
   }
-  // lib.mkIf runPytestTests { MUMPS = lib.toString mumps; }
+  // lib.mkIf buildIpopt { MUMPS = lib.toString mumps; }
 )

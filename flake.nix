@@ -45,7 +45,7 @@
             overrides
             // {
               inherit (self.outputs.packages.${system}) casadipy nloptpy ocp;
-              runPytestTests = false;
+              buildIpopt = false;
               # ocp = self.outputs.packages.${system}.ocp-from-conda;
             }
           );

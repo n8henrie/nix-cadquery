@@ -4,7 +4,7 @@
   casadipy,
   nloptpy,
   ocp,
-  runPytestTests ? false,
+  buildIpopt ? false,
 }:
 let
   pname = "cadquery";
@@ -32,7 +32,7 @@ buildPythonPackage {
       typish
     ])
     ++ [
-      (casadipy.override { inherit runPytestTests; })
+      (casadipy.override { inherit buildIpopt; })
       nloptpy
       ocp
     ];
