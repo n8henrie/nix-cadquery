@@ -1,4 +1,4 @@
-# nix-cadquery
+# nix-cadquery [![CI](https://github.com/n8henrie/nix-cadquery/actions/workflows/ci.yml/badge.svg)](https://github.com/n8henrie/nix-cadquery/actions/workflows/ci.yml)
 
 My attempt to build and run [cadquery] with minimal headaches on aarch64-darwin.
 
