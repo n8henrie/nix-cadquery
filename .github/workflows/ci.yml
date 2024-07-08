@@ -8,7 +8,7 @@ on:
 jobs:
   nix:
     name: build with nix
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
       - uses: DeterminateSystems/nix-installer-action@v12
