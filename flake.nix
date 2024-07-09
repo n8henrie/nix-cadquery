@@ -57,6 +57,19 @@
           );
           mumps = pkgs.callPackage ./mumps { };
         };
+        apps = {
+          default = self.outputs.apps.${system}.jupyterlab-with-cadquery;
+          jupyterlab-with-cadquery = {
+            type = "app";
+            program =
+              let
+                script = pkgs.writeShellScriptBin "run" ''
+                  ${self.outputs.packages.${system}.jupyterlab-with-cadquery}/bin/jupyter-lab
+                '';
+              in
+              "${script}/bin/run";
+          };
+        };
       }
     );
 }
